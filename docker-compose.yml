@@ -1,64 +1,21 @@
 version: "3.7"
 networks:
   app-net:
-  proxy:
-    external: true
 volumes:
   app-data:
   app-redis:
   app-caddy:
 
-
 services:
-  # ------------------------
-  # Nginx - php-fpm versions
-  # ------------------------
-
-  dashboard:
-    image: caddy
-    volumes:
-      - ./.docker/caddy/Caddyfile:/etc/caddy/Caddyfile
-      - ./.dev/public:/srv/app/public
-    #      - app-caddy:/data
-    #      - app-caddy:/config
-    #    user: ${UID}
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.dashboard.entrypoints=websecure"
-      - "traefik.http.routers.dashboard.rule=Host(`dashboard.minimal.localhost`)"
-      - "traefik.http.routers.dashboard.tls=true"                                         # TLS termination
-      # Middlewares
-      - "traefik.http.middlewares.force-https.redirectscheme.scheme=https"
-      - "traefik.http.middlewares.force-https.redirectscheme.permanent=true"
-      # Enable redirect from http to https
-      - "traefik.http.routers.dashboard-insecure.entrypoints=web"
-      - "traefik.http.routers.dashboard-insecure.rule=Host(`dashboard.minimal.localhost`)"
-      - "traefik.http.routers.dashboard-insecure.middlewares=force-https"
-    networks:
-      - proxy
-
   caddy:
     image: caddy
     volumes:
       - ./.docker/caddy/Caddyfile:/etc/caddy/Caddyfile
       - ./public:/srv/app/public
-#      - app-caddy:/data
-#      - app-caddy:/config
-#    user: ${UID}
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.caddy.entrypoints=websecure"
-      - "traefik.http.routers.caddy.rule=Host(`app.minimal.localhost`)"
-      - "traefik.http.routers.caddy.tls=true"                                         # TLS termination
-      # Middlewares
-      - "traefik.http.middlewares.force-https.redirectscheme.scheme=https"
-      - "traefik.http.middlewares.force-https.redirectscheme.permanent=true"
-      # Enable redirect from http to https
-      - "traefik.http.routers.caddy-insecure.entrypoints=web"
-      - "traefik.http.routers.caddy-insecure.rule=Host(`app.minimal.localhost`)"
-      - "traefik.http.routers.caddy-insecure.middlewares=force-https"
+    ports:
+      - "8100:80"
     networks:
-      - proxy
+      - app-net
 
   nginx:
     image: nginx
@@ -67,16 +24,10 @@ services:
       dockerfile: .docker/nginx/Dockerfile
     ports:
       - "8099:80"
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.nginx.rule=Host(`nx.minimal.localhost`)"
-#    depends_on:
-#      - traefik
     volumes:
       - ./public:/srv/app/public
     networks:
       - app-net
-      - proxy
 
   php:
     build:
@@ -103,22 +54,7 @@ services:
       - ./.logs/:/logs/
     networks:
       - app-net
-      - proxy
     env_file: .env
-
-  webgrind:
-    image: devgeniem/webgrind
-    labels:
-      - "traefik.enable=true"
-#      - "traefik.http.routers.caddy-insecure.entrypoints=web"
-#      - "traefik.docker.network=traefik_proxy"
-      - "traefik.http.routers.debug.rule=Host(`debug.minimal.localhost`)"
-#      - "traefik.http.routers.debug.tls=true"
-    networks:
-      - app-net
-      - proxy
-    volumes:
-      - ./.profiler:/tmp/xdebug
 
   # ------------------------
   # Databases
@@ -128,71 +64,27 @@ services:
     command: mysqld --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
     ports:
       - "13306:3306"
-    labels:
-      - "traefik.enable=true"
-      # Routers
-      - "traefik.tcp.routers.mariadb.rule=HostSNI(`*`)"       # Support for "no TLS" connections
-      - "traefik.tcp.routers.mariadb.entrypoints=mysql"
-      # Service (TCP)
-      - "traefik.tcp.services.mysql.loadbalancer.server.port=3306"
     environment:
       - MYSQL_DATABASE=demo
       - MYSQL_ROOT_PASSWORD=password
     networks:
       - app-net
-      - proxy
     env_file: .env
 
   smtp:
     image: mailhog/mailhog
-    labels:
-      - "traefik.enable=true"
-      # Router
-#      - "traefik.tcp.routers.mariadb.service=web"
-      - "traefik.http.routers.smtp.rule=Host(`mail.minimal.localhost`)"
-      # Service
-      - "traefik.http.services.smtp.loadbalancer.server.port=8025" # forward traffic to port 8025
-#    depends_on:
-#      - traefik
+    ports:
+      - '8025:8025'
     networks:
-      - proxy
-
-#  redisInsights:
-#    image: redislabs/redisinsight:latest
-#    ports:
-#      - "8001"
-#    labels:
-#      - "traefik.enable=true"
-##      - "traefik.http.routers.redisInsights.entrypoints=websecure"
-#      - "traefik.http.routers.redisInsights.rule=Host(`redisInsights.minimal.localhost`)"
-##      - "traefik.http.routers.redisInsights.tls=true"                                         # TLS termination
-#      # Middlewares
-##      - "traefik.http.middlewares.force-https.redirectscheme.scheme=https"
-##      - "traefik.http.middlewares.force-https.redirectscheme.permanent=true"
-#      # Enable redirect from http to https
-##      - "traefik.http.routers.redisInsights-insecure.entrypoints=web"
-##      - "traefik.http.routers.redisInsights-insecure.rule=Host(`redisInsights.minimal.localhost`)"
-##      - "traefik.http.routers.redisInsights-insecure.middlewares=force-https"
-#      - "traefik.http.services.redisInsights.loadbalancer.server.port=8001"
-#    networks:
 #      - proxy
-#
-#  redis:
-#    image: redis
-#    ports:
-#      - "6379"
-#    labels:
-#      - "traefik.enable=true"
-#      - "traefik.tcp.routers.redis.rule=HostSNI(`*`)"
-#      - "traefik.tcp.routers.redis.entrypoints=redisep"
-#      - "traefik.tcp.routers.redis.service=redis"
-#      - "traefik.tcp.services.redis.loadbalancer.server.port=6379"
-#    command: redis-server --save 20 1 --loglevel warning --requirepass ${REDIS_PASS}
-#      #--requirepass ${REDIS_PASS}
-#    # --save 20 1 which instructs the server to save 1 or more writes every 20 seconds to disk in case the server restarts
-#    volumes:
-#      - app-redis:/data
-#    networks:
-#      - app-net
-#    env_file:
-#      - .env
+      - app-net
+
+  redis:
+    image: redis/redis-stack
+    hostname: redis
+    restart: on-failure
+    ports:
+      - '6379:6379'
+      - '8026:8001'
+    networks:
+      app-net:
