@@ -21,3 +21,9 @@ WORKDIR /srv/app/
 
 #Copy xdebug settings ini file
 COPY .docker/php/conf.d/ /usr/local/etc/php/conf.d/
+
+COPY .docker/php/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
+ENTRYPOINT ["docker-entrypoint.sh"]
+CMD ["php-fpm"]
